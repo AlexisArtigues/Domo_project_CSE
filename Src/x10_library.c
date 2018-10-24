@@ -15,7 +15,7 @@ uint32_t uwPrescalerValue = 0;
 
 void InitX10(void){
 
-bInterrupt = 0;
+	bInterrupt = 0;
 
   // D2 is on Port G - Bit 6 
   GPIO_InitTypeDef  gpio_init_structure;

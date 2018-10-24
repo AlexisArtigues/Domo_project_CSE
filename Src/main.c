@@ -12,18 +12,21 @@
 /* Private define*/
 #define NB_SEND 5
 #define SIZE_TRAM 68
-/* Private typedef -----------------------------------------------------------*/
-/* Struct */
 
 /* Private variables ---------------------------------------------------------*/
 static TS_StateTypeDef  TS_State;
 struct netif gnetif; /* network interface structure */
-osThreadId thread2_Id;
+osThreadId x10_thread_Id;
 osThreadId touchscreen_thread;
 volatile unsigned char ptr_data_x10;
 volatile unsigned char bInterrupt;
 volatile signed char interrupt_count = 0;
 unsigned char x10_frame_array_send[SIZE_TRAM];
+unsigned char bToogle = 0;
+
+/* OS message declaration*/
+osMessageQDef(x10_send_message, 1, uint16_t); 
+osMessageQId (x10_send_message);           
 
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
@@ -35,36 +38,20 @@ static void MPU_Config(void);
 static void Error_Handler(void);
 static void CPU_CACHE_Enable(void);
 
-// static void InitX10(void){
-//   // D2 is on Port G - Bit 6 
-//   GPIO_InitTypeDef  gpio_init_structure;
-
-//   /* Enable the GPIO_LED clock */
-//     __HAL_RCC_GPIOG_CLK_ENABLE();
-
-//   /* Configure the GPIO_LED pin */
-//     gpio_init_structure.Pin = GPIO_PIN_6;
-//     gpio_init_structure.Mode = GPIO_MODE_OUTPUT_PP;
-//     gpio_init_structure.Pull = GPIO_PULLUP;
-//     gpio_init_structure.Speed = GPIO_SPEED_HIGH;
-
-//    HAL_GPIO_Init(GPIOG, &gpio_init_structure);
-    
-//     /* By default, turn off LED */
-//     HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET);
-// }
-
-
-static void thread2(void const *argument)
+static void x10_thread(void const *argument)
 {
   (void) argument;
   InitX10();
+  osEvent  osEvent_X10;
   for(;;)
   {
-    Send_complete_x10_frame(A1_8_ADDR,A2_OFF);
-    osDelay(5000);
-    Send_complete_x10_frame(A1_8_ADDR,A2_ON);
-    osDelay(5000);
+    osEvent_X10 = osMessageGet(x10_send_message,osWaitForever);
+    if (osEvent_X10.status == osEventMessage){
+      uint16_t x10_data = osEvent_X10.value.v;
+      uint16_t address = (x10_data & 0xFF00)>>8;
+      uint16_t data = (x10_data & 0xFF);
+      Send_complete_x10_frame(address,data);
+    }
   }
 }
 
@@ -74,6 +61,7 @@ static void touchscreen_demo(void const *argument)
 {
  uint8_t  status = 0;
   uint16_t x, y;
+  uint16_t data_x10_send_ts;
   uint8_t  text[30];
 
   status = BSP_TS_Init(BSP_LCD_GetXSize(), BSP_LCD_GetYSize());
@@ -94,45 +82,21 @@ static void touchscreen_demo(void const *argument)
         sprintf((char*)text, "TS detected : 1[%d,%d] \n", x, y);
         LCD_UsrLog ((char *)&text);
 
+        if(bToogle==1){
+          data_x10_send_ts = (A1_8_ADDR<<8) | A1_ON;
+          bToogle = 0;
+          LCD_UsrLog ((char *)" A1 : OFF\n");
+        }else{
+          data_x10_send_ts = (A1_8_ADDR<<8) | A1_OFF;
+          LCD_UsrLog ((char *)" A1 : ON\n");
+          bToogle = 1;
+        }
+        osMessagePut(x10_send_message, data_x10_send_ts, osWaitForever );
       } /* of if(TS_State.touchDetected) */
     }
     osDelay(100);
   }
 }
-
-// static void InitTimer(void){
-//   /* Compute the prescaler value to have TIMx counter clock equal to 10000 Hz */
-//   //uwPrescalerValue = (uint32_t)(200-1);
-//   uwPrescalerValue = (uint32_t)((SystemCoreClock / 4) / 1000000) - 1;
-//   /* Set TIMx instance */
-//   TimHandle3.Instance = TIM3;
-
-//   /* Initialize TIMx peripheral as follows:
-//        + Period = 10000 - 1
-//        + Prescaler = ((SystemCoreClock / 2)/10000) - 1
-//        + ClockDivision = 0
-//        + Counter direction = Up
-//   */
-//   TimHandle3.Init.Period            = (1125/4) - 1;
-//   TimHandle3.Init.Prescaler         = uwPrescalerValue;
-//   TimHandle3.Init.ClockDivision     = 0;
-//   TimHandle3.Init.CounterMode       = TIM_COUNTERMODE_UP;
-//   TimHandle3.Init.RepetitionCounter = 0;
-//   TimHandle3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-//   if (HAL_TIM_Base_Init(&TimHandle3) != HAL_OK)
-//   {
-//     /* Initialization Error */
-//     Error_Handler();
-//   }
-
-//   /*##-2- Start the TIM Base generation in interrupt mode ####################*/
-//   /* Start Channel1 */
-//   if (HAL_TIM_Base_Start_IT(&TimHandle3) != HAL_OK)
-//   {
-//     /* Starting Error */
-//     Error_Handler();
-//   }
-// }
 
 /**
   * @brief  Period elapsed callback in non blocking mode
@@ -233,10 +197,15 @@ static void StartThread(void const * argument)
   osThreadDef(DHCP, DHCP_thread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE * 2);
   osThreadCreate (osThread(DHCP), &gnetif);
 #endif
-  osThreadDef(LED2,thread2,osPriorityNormal,0, configMINIMAL_STACK_SIZE*2);
+  osThreadDef(x10,x10_thread,osPriorityNormal,0, configMINIMAL_STACK_SIZE*2);
   osThreadDef(touchscreen,touchscreen_demo,osPriorityBelowNormal,0, configMINIMAL_STACK_SIZE*2);
-  thread2_Id = osThreadCreate(osThread(LED2),NULL);
+  x10_thread_Id = osThreadCreate(osThread(x10),NULL);
   touchscreen_thread = osThreadCreate(osThread(touchscreen),NULL);
+
+  // Create message queu
+
+   x10_send_message = osMessageCreate(osMessageQ(x10_send_message), NULL);
+
   for( ;; )
   {
     /* Delete the Init Thread */ 
