@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "main.h": "c",
+        "ethernetif.h": "c",
+        "app_ethernet.h": "c",
+        "httpserver-netconn.h": "c"
+    }
+}
