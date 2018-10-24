@@ -79,6 +79,7 @@
 "stm32746g_discovery\app_ethernet.o"
 "stm32746g_discovery\stm32f7xx_it.o"
 "stm32746g_discovery\stm32f7xx_hal_msp.o"
+"stm32746g_discovery\x10_library.o"
 --library_type=microlib --strict --scatter "STM32746G_DISCOVERY\STM32746G_DISCOVERY.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

@@ -96,3 +96,5 @@ stm32746g_discovery\main.o: ../../../../../../Middlewares/Third_Party/LwIP/src/i
 stm32746g_discovery\main.o: ../../../../../../Middlewares/Third_Party/LwIP/src/include/lwip/netbuf.h
 stm32746g_discovery\main.o: ../../../../../../Utilities/Log/lcd_log.h
 stm32746g_discovery\main.o: ../Inc/lcd_log_conf.h
+stm32746g_discovery\main.o: ../Inc/x10_library.h
+stm32746g_discovery\main.o: ../../../../../../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h

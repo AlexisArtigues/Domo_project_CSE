@@ -850,6 +850,11 @@
               <FileType>1</FileType>
               <FilePath>..\Inc\stm32f7xx_hal_msp.c</FilePath>
             </File>
+            <File>
+              <FileName>x10_library.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\x10_library.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

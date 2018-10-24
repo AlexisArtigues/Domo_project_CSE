@@ -7,34 +7,22 @@
 #include "app_ethernet.h"
 #include "httpserver-netconn.h"
 #include "lcd_log.h"
+#include "x10_library.h"
 
 /* Private define*/
 #define NB_SEND 5
 #define SIZE_TRAM 68
-#define A1_8_ADDR 0x60
-#define A1_ON 0x00
-#define A1_OFF 0x20
-#define A2_ON 0x10
-#define A2_OFF 0x30
 /* Private typedef -----------------------------------------------------------*/
 /* Struct */
-/* Private variables ---------------------------------------------------------*/
-static TS_StateTypeDef  TS_State;
-/* TIM handle declaration */
-TIM_HandleTypeDef    TimHandle3;
-/* Prescaler declaration */
-uint32_t uwPrescalerValue = 0;
 
 /* Private variables ---------------------------------------------------------*/
-//TEtatX10 EtatX10;
-//TEtatSendX10 SendX10;
-volatile signed char interrupt_count = 0;
-volatile unsigned char bit_one=0;
+static TS_StateTypeDef  TS_State;
 struct netif gnetif; /* network interface structure */
 osThreadId thread2_Id;
 osThreadId touchscreen_thread;
 volatile unsigned char ptr_data_x10;
 volatile unsigned char bInterrupt;
+volatile signed char interrupt_count = 0;
 unsigned char x10_frame_array_send[SIZE_TRAM];
 
 /* Private function prototypes -----------------------------------------------*/
@@ -46,89 +34,31 @@ static void Netif_Config(void);
 static void MPU_Config(void);
 static void Error_Handler(void);
 static void CPU_CACHE_Enable(void);
-static void InitX10(void);
-static void InitTimer(void);
-void ResetEtatX10(void);
-void Build_x10_tick_array(uint8_t adrress,uint8_t data,unsigned char array_out[]);
-void Cp_array(unsigned char arrayIn[], unsigned char arrayOut[],unsigned char dim);
-void Send_single_x10_frame(uint8_t addres_x10,uint8_t data_x10);
-void Send_complete_x10_frame(uint8_t addres_x10,uint8_t data_x10);
 
-void Cp_array(unsigned char arrayIn[], unsigned char arrayOut[],unsigned char dim){
-  unsigned char i=0;
-  for(i=0;i<dim;i++){
-    arrayOut[i] = arrayIn[i];
-  }
-}
+// static void InitX10(void){
+//   // D2 is on Port G - Bit 6 
+//   GPIO_InitTypeDef  gpio_init_structure;
 
-void Build_x10_tick_array(uint8_t adress,uint8_t data,unsigned char array_out[]){
-  unsigned char temp_array_tick[] = {1,64,32,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5};
-  uint32_t temp_array_addr_data;
-  char i;
-  unsigned char ptr_array_tick = 3;
-  uint8_t adress_ = ~adress;
-  uint8_t data_ = ~data;
-  temp_array_addr_data = (adress << 24) | (adress_ << 16) | (data << 8) | data_;
-  i=32;
-  do{
-		i--;
-    if(temp_array_addr_data &(1<<i)){
-      temp_array_tick[ptr_array_tick] = 3;
-      ptr_array_tick++;
-      temp_array_tick[ptr_array_tick] = 11;
-      ptr_array_tick++;
-    }else{
-      temp_array_tick[ptr_array_tick] = 3;
-      ptr_array_tick++;
-      temp_array_tick[ptr_array_tick] = 3;
-      ptr_array_tick++;
-    }
-  }while(i>0);
-  Cp_array(temp_array_tick,array_out,SIZE_TRAM);
-}
+//   /* Enable the GPIO_LED clock */
+//     __HAL_RCC_GPIOG_CLK_ENABLE();
 
-void Send_single_x10_frame(uint8_t addres_x10,uint8_t data_x10){
-  unsigned char array_tick_x10[SIZE_TRAM];
-  Build_x10_tick_array(addres_x10,data_x10,array_tick_x10);
-  Cp_array(array_tick_x10,x10_frame_array_send,SIZE_TRAM);
-  ptr_data_x10=0;
-	interrupt_count=0;
-	bInterrupt = 1;
-}
+//   /* Configure the GPIO_LED pin */
+//     gpio_init_structure.Pin = GPIO_PIN_6;
+//     gpio_init_structure.Mode = GPIO_MODE_OUTPUT_PP;
+//     gpio_init_structure.Pull = GPIO_PULLUP;
+//     gpio_init_structure.Speed = GPIO_SPEED_HIGH;
 
-void Send_complete_x10_frame(uint8_t addres_x10,uint8_t data_x10){
-    unsigned char i = 0;
-    for(i=0;i<4;i++){
-     Send_single_x10_frame(addres_x10,data_x10);
-      osDelay(105);
-    }
-}
-
-static void InitX10(void){
-  // D2 is on Port G - Bit 6 
-  GPIO_InitTypeDef  gpio_init_structure;
-
-  /* Enable the GPIO_LED clock */
-    __HAL_RCC_GPIOG_CLK_ENABLE();
-
-  /* Configure the GPIO_LED pin */
-    gpio_init_structure.Pin = GPIO_PIN_6;
-    gpio_init_structure.Mode = GPIO_MODE_OUTPUT_PP;
-    gpio_init_structure.Pull = GPIO_PULLUP;
-    gpio_init_structure.Speed = GPIO_SPEED_HIGH;
-
-   HAL_GPIO_Init(GPIOG, &gpio_init_structure);
+//    HAL_GPIO_Init(GPIOG, &gpio_init_structure);
     
-    /* By default, turn off LED */
-    HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET);
-}
+//     /* By default, turn off LED */
+//     HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET);
+// }
 
 
 static void thread2(void const *argument)
 {
   (void) argument;
-  InitTimer();
-	bInterrupt = 0;
+  InitX10();
   for(;;)
   {
     Send_complete_x10_frame(A1_8_ADDR,A2_OFF);
@@ -170,39 +100,39 @@ static void touchscreen_demo(void const *argument)
   }
 }
 
-static void InitTimer(void){
-  /* Compute the prescaler value to have TIMx counter clock equal to 10000 Hz */
-  //uwPrescalerValue = (uint32_t)(200-1);
-  uwPrescalerValue = (uint32_t)((SystemCoreClock / 4) / 1000000) - 1;
-  /* Set TIMx instance */
-  TimHandle3.Instance = TIM3;
+// static void InitTimer(void){
+//   /* Compute the prescaler value to have TIMx counter clock equal to 10000 Hz */
+//   //uwPrescalerValue = (uint32_t)(200-1);
+//   uwPrescalerValue = (uint32_t)((SystemCoreClock / 4) / 1000000) - 1;
+//   /* Set TIMx instance */
+//   TimHandle3.Instance = TIM3;
 
-  /* Initialize TIMx peripheral as follows:
-       + Period = 10000 - 1
-       + Prescaler = ((SystemCoreClock / 2)/10000) - 1
-       + ClockDivision = 0
-       + Counter direction = Up
-  */
-  TimHandle3.Init.Period            = (1125/4) - 1;
-  TimHandle3.Init.Prescaler         = uwPrescalerValue;
-  TimHandle3.Init.ClockDivision     = 0;
-  TimHandle3.Init.CounterMode       = TIM_COUNTERMODE_UP;
-  TimHandle3.Init.RepetitionCounter = 0;
-  TimHandle3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&TimHandle3) != HAL_OK)
-  {
-    /* Initialization Error */
-    Error_Handler();
-  }
+//   /* Initialize TIMx peripheral as follows:
+//        + Period = 10000 - 1
+//        + Prescaler = ((SystemCoreClock / 2)/10000) - 1
+//        + ClockDivision = 0
+//        + Counter direction = Up
+//   */
+//   TimHandle3.Init.Period            = (1125/4) - 1;
+//   TimHandle3.Init.Prescaler         = uwPrescalerValue;
+//   TimHandle3.Init.ClockDivision     = 0;
+//   TimHandle3.Init.CounterMode       = TIM_COUNTERMODE_UP;
+//   TimHandle3.Init.RepetitionCounter = 0;
+//   TimHandle3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+//   if (HAL_TIM_Base_Init(&TimHandle3) != HAL_OK)
+//   {
+//     /* Initialization Error */
+//     Error_Handler();
+//   }
 
-  /*##-2- Start the TIM Base generation in interrupt mode ####################*/
-  /* Start Channel1 */
-  if (HAL_TIM_Base_Start_IT(&TimHandle3) != HAL_OK)
-  {
-    /* Starting Error */
-    Error_Handler();
-  }
-}
+//   /*##-2- Start the TIM Base generation in interrupt mode ####################*/
+//   /* Start Channel1 */
+//   if (HAL_TIM_Base_Start_IT(&TimHandle3) != HAL_OK)
+//   {
+//     /* Starting Error */
+//     Error_Handler();
+//   }
+// }
 
 /**
   * @brief  Period elapsed callback in non blocking mode
@@ -260,8 +190,6 @@ int main(void)
   
   /* Configure the system clock to 200 MHz */
   SystemClock_Config(); 
-
-  InitX10();
 
   /* Init thread */
 #if defined(__GNUC__)
