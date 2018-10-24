@@ -52,6 +52,7 @@
 #include <stdio.h>
 #include "httpserver-netconn.h"
 #include "cmsis_os.h"
+#include "x10_library.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -60,6 +61,10 @@
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 u32_t nPageHits = 0;
+const char http_raw_response_OK200[]="HTTP/1.0 200 OK\nServer: lwIP/1.3.1\nAccess-Control-Allow-Origin: *\nContent-type: text\n\n";
+
+/* Extern var*/
+extern osMessageQId x10_send_message;
 
 /* Format of dynamic web page: the page header */
 static const unsigned char PAGE_START[] = {
@@ -178,6 +183,7 @@ static void http_server_serve(struct netconn *conn)
   err_t recv_err;
   char* buf;
   u16_t buflen;
+  uint16_t x10_data_send_web;
   struct fs_file file;
   
   /* Read the data from the port, blocking if nothing yet there. 
@@ -226,6 +232,26 @@ static void http_server_serve(struct netconn *conn)
           fs_open(&file, "/STM32F7xx.html"); 
           netconn_write(conn, (const unsigned char*)(file.data), (size_t)file.len, NETCONN_NOCOPY);
           fs_close(&file);
+        }else if (strncmp((char const *)buf,"GET /x10_devices.html",21)==0){
+          fs_open(&file, "/x10_devices.html"); 
+          netconn_write(conn, (const unsigned char*)(file.data), (size_t)file.len, NETCONN_NOCOPY);
+          fs_close(&file);
+        }else if (strncmp((char const *)buf,"GET /x10_devices/A1_ON",22)==0){
+          x10_data_send_web = (A1_8_ADDR<<8) | A1_ON;
+          osMessagePut(x10_send_message, x10_data_send_web, osWaitForever);
+          netconn_write(conn, http_raw_response_OK200, (size_t)(sizeof (char) * strlen(http_raw_response_OK200)), NETCONN_NOCOPY);
+        }else if (strncmp((char const *)buf,"GET /x10_devices/A1_OFF",23)==0){
+          x10_data_send_web = (A1_8_ADDR<<8) | A1_OFF;
+          osMessagePut(x10_send_message, x10_data_send_web, osWaitForever);
+          netconn_write(conn, http_raw_response_OK200, (size_t)(sizeof (char) * strlen(http_raw_response_OK200)), NETCONN_NOCOPY);
+        }else if (strncmp((char const *)buf,"GET /x10_devices/A2_ON",22)==0){
+          x10_data_send_web = (A1_8_ADDR<<8) | A2_ON;
+          osMessagePut(x10_send_message, x10_data_send_web, osWaitForever);
+          netconn_write(conn, http_raw_response_OK200, (size_t)(sizeof (char) * strlen(http_raw_response_OK200)), NETCONN_NOCOPY);
+        }else if (strncmp((char const *)buf,"GET /x10_devices/A2_OFF",23)==0){
+          x10_data_send_web = (A1_8_ADDR<<8) | A2_OFF;
+          osMessagePut(x10_send_message, x10_data_send_web, osWaitForever);
+          netconn_write(conn, http_raw_response_OK200, (size_t)(sizeof (char) * strlen(http_raw_response_OK200)), NETCONN_NOCOPY);
         }
         else 
         {

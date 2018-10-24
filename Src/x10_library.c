@@ -112,7 +112,7 @@ void Send_single_x10_frame(uint8_t addres_x10,uint8_t data_x10){
 
 void Send_complete_x10_frame(uint8_t addres_x10,uint8_t data_x10){
     unsigned char i = 0;
-    for(i=0;i<4;i++){
+    for(i=0;i<5;i++){
      Send_single_x10_frame(addres_x10,data_x10);
       osDelay(105);
     }

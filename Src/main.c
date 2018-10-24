@@ -51,6 +51,7 @@ static void x10_thread(void const *argument)
       uint16_t address = (x10_data & 0xFF00)>>8;
       uint16_t data = (x10_data & 0xFF);
       Send_complete_x10_frame(address,data);
+      osDelay(10);
     }
   }
 }
@@ -85,10 +86,10 @@ static void touchscreen_demo(void const *argument)
         if(bToogle==1){
           data_x10_send_ts = (A1_8_ADDR<<8) | A1_ON;
           bToogle = 0;
-          LCD_UsrLog ((char *)" A1 : OFF\n");
+          LCD_UsrLog ((char *)" A1 : ON\n");
         }else{
           data_x10_send_ts = (A1_8_ADDR<<8) | A1_OFF;
-          LCD_UsrLog ((char *)" A1 : ON\n");
+          LCD_UsrLog ((char *)" A1 : OFF\n");
           bToogle = 1;
         }
         osMessagePut(x10_send_message, data_x10_send_ts, osWaitForever );
